@@ -1,0 +1,31 @@
+{
+  "name": "d3-tutorial",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "webpack serve --config ./config/webpack.dev.js",
+    "build": "webpack --config ./config/webpack.prod.js"
+  },
+  "keywords": [
+    "d3-tutorial"
+  ],
+  "author": "powerfulyang",
+  "license": "MIT",
+  "devDependencies": {
+    "@powerfulyang/lint": "3.1.3",
+    "webpack": "latest",
+    "webpack-cli": "latest",
+    "webpack-dev-server": "latest",
+    "webpack-merge": "latest",
+    "typescript": "latest",
+    "@types/d3": "latest",
+    "html-webpack-plugin": "latest",
+    "clean-webpack-plugin": "latest",
+    "swc-loader": "latest",
+    "html-loader": "latest"
+  },
+  "dependencies": {
+    "d3": "latest"
+  }
+}
