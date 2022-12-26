@@ -52,7 +52,7 @@ const line = svg
 
 // 绘制 requestCount 折线
 const requestCountData = data.map((d) => d.requestCount);
-line
+const line1 = line
   .append('path')
   .datum(requestCountData)
   .attr('class', 'line')
@@ -67,12 +67,28 @@ line
       .y((d) => yScale(d) || 0),
   );
 
+// animation
+const line1Path = line1.node()?.getTotalLength();
+if (line1Path) {
+  line1
+    .attr('stroke-dasharray', line1Path)
+    .attr('stroke-dashoffset', line1Path)
+    .transition()
+    .duration(2000)
+    .ease(d3.easeLinear)
+    .attr('stroke-dashoffset', 0)
+    .end()
+    .finally(() => {
+      line1.attr('stroke-dasharray', null).attr('stroke-dashoffset', null);
+    });
+}
+
 // 绘制 distinctRequestCount 折线
 const distinctRequestCountData = data.map((d) => d.distinctRequestCount);
 line
   .append('path')
   .datum(distinctRequestCountData)
-  .attr('class', 'line')
+  .attr('class', 'curve-line')
   .attr('fill', 'none')
   .attr('stroke', 'red')
   .attr('stroke-width', 1)
@@ -81,7 +97,8 @@ line
     d3
       .line<number>()
       .x((d, i) => xScale(new Date(data[i].createAt)) || 0)
-      .y((d) => yScale(d) || 0),
+      .y((d) => yScale(d) || 0)
+      .curve(d3.curveBasis),
   );
 
 // 绘制 distinctIpCount 折线
@@ -100,6 +117,16 @@ line
       .x((d, i) => xScale(new Date(data[i].createAt)) || 0)
       .y((d) => yScale(d) || 0),
   );
+// add circles
+line
+  .selectAll('.circle')
+  .data(distinctIpCountData)
+  .enter()
+  .append('circle')
+  .attr('class', 'circle')
+  .attr('cx', (d, i) => xScale(new Date(data[i].createAt)) || 0)
+  .attr('cy', (d) => yScale(d) || 0)
+  .attr('r', 1);
 
 // clip
 svg
@@ -147,6 +174,18 @@ const updateChart = (event: any) => {
         .line<number>()
         .x((d, i) => xScale(new Date(data[i].createAt)) || 0)
         .y((d) => yScale(d) || 0),
+    );
+  line
+    .selectAll<SVGPathElement, number[]>('.curve-line')
+    .transition()
+    .duration(1000)
+    .attr(
+      'd',
+      d3
+        .line<number>()
+        .x((d, i) => xScale(new Date(data[i].createAt)) || 0)
+        .y((d) => yScale(d) || 0)
+        .curve(d3.curveBasis),
     );
 };
 
