@@ -117,16 +117,20 @@ line
       .x((d, i) => xScale(new Date(data[i].createAt)) || 0)
       .y((d) => yScale(d) || 0),
   );
+
 // add circles
-line
-  .selectAll('.circle')
-  .data(distinctIpCountData)
-  .enter()
-  .append('circle')
-  .attr('class', 'circle')
-  .attr('cx', (d, i) => xScale(new Date(data[i].createAt)) || 0)
-  .attr('cy', (d) => yScale(d) || 0)
-  .attr('r', 1);
+const addCircles = () => {
+  line
+    .selectAll('.circle')
+    .data(distinctIpCountData)
+    .enter()
+    .append('circle')
+    .attr('class', 'circle')
+    .attr('cx', (d, i) => xScale(new Date(data[i].createAt)) || 0)
+    .attr('cy', (d) => yScale(d) || 0)
+    .attr('r', 1.5);
+};
+addCircles();
 
 // clip
 svg
@@ -162,8 +166,17 @@ const updateChart = (event: any) => {
     brush.move(line.select<SVGGElement>('.brush'), null);
   }
 
+  // remove existing circles
+  line.selectAll('.circle').remove();
   // update axis and line position
-  xAxis.transition().duration(1000).call(axisBottom(xScale));
+  xAxis
+    .transition()
+    .duration(1000)
+    .call(axisBottom(xScale))
+    .end()
+    .then(() => {
+      addCircles();
+    });
   line
     .selectAll<SVGPathElement, number[]>('.line')
     .transition()
@@ -193,3 +206,92 @@ brush.on('end', updateChart);
 
 // add the brushing
 line.append('g').attr('class', 'brush').call(brush);
+
+// tooltip
+const tooltip = svg
+  .append('g')
+  .attr('class', 'tooltip')
+  .attr('transform', `translate(${padding},${padding})`);
+
+tooltip
+  // this is the black vertical line to follow mouse
+  // .append('line')
+  .append('path')
+  .attr('class', 'tooltip-line')
+  .style('stroke', '#ccc')
+  .style('stroke-width', '1px')
+  .style('opacity', '0');
+
+tooltip.append('text').attr('class', 'tooltip-text').style('opacity', '0');
+
+const tooltipGroup = tooltip
+  .selectAll('.tooltip-group')
+  .data(['requestCount', 'distinctRequestCount', 'distinctIpCount'])
+  .enter()
+  .append('g')
+  .attr('class', 'tooltip-group');
+
+tooltipGroup
+  .append('circle')
+  .attr('r', 2)
+  .style('fill', (_, i) => {
+    return d3.schemeSet1[i];
+  })
+  .style('opacity', '0');
+
+tooltipGroup
+  .append('text')
+  .style('fill', (_, i) => {
+    return d3.schemeSet1[i];
+  })
+  .attr('transform', 'translate(10,3)');
+
+tooltip
+  .append('svg:rect') // append a rect to catch mouse movements on canvas
+  .attr('width', width - 2 * padding) // can't catch mouse events on a g element
+  .attr('height', height - 2 * padding)
+  .attr('fill', 'none')
+  .attr('pointer-events', 'all')
+  .on('mouseout', () => {
+    // on mouse out hide line, circles and text
+    d3.select('.tooltip-line').style('opacity', '0');
+    d3.selectAll('.tooltip-group circle').style('opacity', '0');
+    d3.selectAll('.tooltip-group text').style('opacity', '0');
+    d3.select('.tooltip-text').style('opacity', '0');
+  })
+  .on('mouseover', () => {
+    // on mouse in show line, circles and text
+    d3.select('.tooltip-line').style('opacity', '1');
+    d3.selectAll('.tooltip-group circle').style('opacity', '1');
+    d3.selectAll('.tooltip-group text').style('opacity', '1');
+    d3.select('.tooltip-text').style('opacity', '1');
+  })
+  .on('mousemove', (event) => {
+    const mouse = d3.pointer(event);
+    const x = xScale;
+    const y = yScale;
+    const xDate = x.invert(mouse[0]);
+    const idx = d3.bisector((d1: any) => new Date(d1.createAt)).left(data, xDate);
+    const x1 = x(new Date(data[idx].createAt)) || 0;
+    const y1 = height - 2 * padding;
+    const y2 = 0;
+    // below is line element
+    // d3.select('.tooltip-line').attr('x1', x1).attr('x2', x1).attr('y1', y1).attr('y2', y2);
+    d3.select('.tooltip-line')
+      .datum([
+        [x1, y1],
+        [x1, y2],
+      ])
+      .attr('d', d3.line());
+    const t = d3.select<SVGTextElement, unknown>('.tooltip-text').text(data[idx].createAt);
+    const tW = t.node()?.getBBox().width || 0;
+    t.style('transform', `translate(${x1 - tW / 2}px, 0)`);
+
+    d3.selectAll<SVGGElement, 'requestCount' | 'distinctRequestCount' | 'distinctIpCount'>(
+      '.tooltip-group',
+    ).attr('transform', function group(d) {
+      const value = data[idx][d];
+      d3.select(this).select('text').text(value.toFixed(0));
+      return `translate(${x(new Date(data[idx].createAt))},${y(value)})`;
+    });
+  });
