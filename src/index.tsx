@@ -215,7 +215,7 @@ const yHistogramColor = scaleLinear<string, number>()
   .range(['#ffffff', '#0000ff']);
 // 添加直方图
 brushElement
-  .append('g')
+  .insert('g', ':first-child')
   .attr('class', 'brush-histogram')
   .selectAll('rect')
   .data(bins)
