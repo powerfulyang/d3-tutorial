@@ -4,14 +4,14 @@ const { CleanWebpackPlugin } = require('clean-webpack-plugin');
 const webpack = require('webpack');
 
 module.exports = {
-  entry: './src/index.tsx',
+  entry: './src/index.ts',
   experiments: {
     topLevelAwait: true,
   },
   module: {
     rules: [
       {
-        test: /\.tsx$/,
+        test: /\.ts(x?)$/,
         exclude: /node_modules/,
         loader: 'swc-loader',
       },
@@ -31,7 +31,7 @@ module.exports = {
     ],
   },
   resolve: {
-    extensions: ['.tsx', '.js'],
+    extensions: ['.tsx', '.js', '.ts'],
   },
   output: {
     filename: 'bundle.js',
