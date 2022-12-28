@@ -3,13 +3,14 @@ import { axisBottom, axisLeft, max, scaleLinear, scaleUtc, select } from 'd3';
 
 const prefix = process.env.BASE_URL;
 
-const res = await fetch(`${prefix}/api/public/view-count`);
-const sourceData = (await res.json()) as {
+type Datum = {
   createAt: string;
   requestCount: number;
   distinctRequestCount: number;
   distinctIpCount: number;
-}[];
+};
+const res = await fetch(`${prefix}/api/public/view-count`);
+const sourceData = (await res.json()) as Datum[];
 const data = sourceData.reverse();
 
 const container = select('#container');
@@ -17,7 +18,10 @@ const container = select('#container');
 const width = 1300;
 const height = 600;
 const padding = 50;
-const svg = container.append('svg').attr('width', width).attr('height', height);
+const svg = container
+  .append('svg')
+  .attr('width', width)
+  .attr('height', height + 150);
 
 // 根据 $data 绘制折线图
 
@@ -27,10 +31,28 @@ const maxValue =
 const xScale = scaleUtc()
   .domain(d3.extent(data, (d) => new Date(d.createAt)) as [Date, Date])
   .range([0, width - 2 * padding]);
+const xScaleBackUp = scaleUtc()
+  .domain(d3.extent(data, (d) => new Date(d.createAt)) as [Date, Date])
+  .range([0, width - 2 * padding]);
 
 const yScale = scaleLinear()
   .domain([maxValue, 0])
   .range([0, height - 2 * padding]);
+
+const genLinePos = () => {
+  return d3
+    .line<number>()
+    .x((d, i) => xScale(new Date(data[i].createAt)) || 0)
+    .y((d) => yScale(d) || 0);
+};
+
+const genCurveLinePos = () => {
+  return d3
+    .line<number>()
+    .x((d, i) => xScale(new Date(data[i].createAt)) || 0)
+    .y((d) => yScale(d) || 0)
+    .curve(d3.curveMonotoneX);
+};
 
 // 绘制 x 轴
 const xAxis = svg
@@ -59,13 +81,7 @@ const line1 = line
   .attr('fill', 'none')
   .attr('stroke', 'steelblue')
   .attr('stroke-width', 1)
-  .attr(
-    'd',
-    d3
-      .line<number>()
-      .x((d, i) => xScale(new Date(data[i].createAt)) || 0)
-      .y((d) => yScale(d) || 0),
-  );
+  .attr('d', genLinePos());
 
 // animation
 const line1Path = line1.node()?.getTotalLength();
@@ -92,14 +108,7 @@ line
   .attr('fill', 'none')
   .attr('stroke', 'red')
   .attr('stroke-width', 1)
-  .attr(
-    'd',
-    d3
-      .line<number>()
-      .x((d, i) => xScale(new Date(data[i].createAt)) || 0)
-      .y((d) => yScale(d) || 0)
-      .curve(d3.curveBasis),
-  );
+  .attr('d', genCurveLinePos());
 
 // 绘制 distinctIpCount 折线
 const distinctIpCountData = data.map((d) => d.distinctIpCount);
@@ -110,13 +119,7 @@ line
   .attr('fill', 'none')
   .attr('stroke', 'green')
   .attr('stroke-width', 1)
-  .attr(
-    'd',
-    d3
-      .line<number>()
-      .x((d, i) => xScale(new Date(data[i].createAt)) || 0)
-      .y((d) => yScale(d) || 0),
-  );
+  .attr('d', genLinePos());
 
 // add circles
 const addCircles = () => {
@@ -135,35 +138,33 @@ addCircles();
 // clip
 svg
   .append('defs')
-  .append('svg:clipPath')
+  .append('clipPath')
   .attr('id', 'clip')
-  .append('svg:rect')
+  .append('rect')
   .attr('width', width - 2 * padding)
   .attr('height', height - 2 * padding)
   .attr('x', 0)
   .attr('y', 0);
 
-let idleTimeout: NodeJS.Timeout | null;
-function idled() {
-  idleTimeout = null;
-}
-
 const brush = d3.brushX().extent([
   [0, 0],
-  [width - 2 * padding, height - 2 * padding],
+  [width - 2 * padding, padding],
 ]);
 
+let changed = false;
 const updateChart = (event: any) => {
   const extent = event.selection;
   if (!extent) {
-    if (!idleTimeout) {
-      idleTimeout = setTimeout(idled, 350);
+    if (changed) {
+      changed = false;
+      xScale.domain(d3.extent(data, (d) => new Date(d.createAt)) as [Date, Date]);
+    } else {
+      // do nothing
       return;
     }
-    xScale.domain(d3.extent(data, (d) => new Date(d.createAt)) as [Date, Date]);
   } else {
-    xScale.domain([xScale.invert(extent[0]), xScale.invert(extent[1])]);
-    brush.move(line.select<SVGGElement>('.brush'), null);
+    changed = true;
+    xScale.domain([xScaleBackUp.invert(extent[0]), xScaleBackUp.invert(extent[1])]);
   }
 
   // remove existing circles
@@ -181,31 +182,56 @@ const updateChart = (event: any) => {
     .selectAll<SVGPathElement, number[]>('.line')
     .transition()
     .duration(1000)
-    .attr(
-      'd',
-      d3
-        .line<number>()
-        .x((d, i) => xScale(new Date(data[i].createAt)) || 0)
-        .y((d) => yScale(d) || 0),
-    );
+    .attr('d', genLinePos());
   line
     .selectAll<SVGPathElement, number[]>('.curve-line')
     .transition()
     .duration(1000)
-    .attr(
-      'd',
-      d3
-        .line<number>()
-        .x((d, i) => xScale(new Date(data[i].createAt)) || 0)
-        .y((d) => yScale(d) || 0)
-        .curve(d3.curveBasis),
-    );
+    .attr('d', genCurveLinePos());
 };
 
 brush.on('end', updateChart);
 
 // add the brushing
-line.append('g').attr('class', 'brush').call(brush);
+const brushElement = svg
+  .append('g')
+  .attr('class', 'brush')
+  .attr('transform', `translate(${padding},${height - padding + 20})`)
+  .call(brush);
+
+//
+const histogram = d3
+  .bin<Datum, Date>()
+  .value((d) => {
+    return new Date(d.createAt);
+  })
+  .domain(xScale.domain() as [Date, Date])
+  .thresholds(data.map((d) => new Date(d.createAt)));
+const bins = histogram(data);
+const maxDistinctIpCount = d3.max(data, (d) => d.distinctIpCount) || 0;
+const yHistogramScale = d3.scaleLinear().domain([maxDistinctIpCount, 0]).range([0, 50]);
+const yHistogramColor = scaleLinear<string, number>()
+  .domain([0, maxDistinctIpCount])
+  .range(['#ffffff', '#0000ff']);
+// 添加直方图
+brushElement
+  .append('g')
+  .attr('class', 'brush-histogram')
+  .selectAll('rect')
+  .data(bins)
+  .join('rect')
+  .attr('width', (d) => {
+    return xScale(d.x1!) - xScale(d.x0!);
+  })
+  .attr('height', (_, i) => {
+    return 50 - yHistogramScale(data[i].distinctIpCount);
+  })
+  .style('fill', (_, i) => {
+    return yHistogramColor(data[i].distinctIpCount);
+  })
+  .attr('transform', (d, i) => {
+    return `translate(${xScale(d.x0!)},${yHistogramScale(data[i].distinctIpCount)})`;
+  });
 
 // tooltip
 const tooltip = svg
@@ -247,7 +273,7 @@ tooltipGroup
   .attr('transform', 'translate(10,3)');
 
 tooltip
-  .append('svg:rect') // append a rect to catch mouse movements on canvas
+  .append('rect') // append a rect to catch mouse movements on canvas
   .attr('width', width - 2 * padding) // can't catch mouse events on a g element
   .attr('height', height - 2 * padding)
   .attr('fill', 'none')
