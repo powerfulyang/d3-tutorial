@@ -1,17 +1,40 @@
 import * as d3 from 'd3';
 import { axisBottom, axisLeft, max, scaleLinear, scaleUtc, select } from 'd3';
+import dayjs from 'dayjs';
 
 const prefix = process.env.BASE_URL;
 
 export type Datum = {
-  createAt: string;
+  date: string;
   requestCount: number;
   distinctRequestCount: number;
   distinctIpCount: number;
 };
-const res = await fetch(`${prefix}/api/public/view-count`);
-const sourceData = (await res.json()) as Datum[];
-export const data = sourceData.reverse();
+const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+const headers = new Headers({
+  'x-client-timezone': timezone,
+});
+const res = await fetch(`${prefix}/api/public/view-count`, {
+  headers,
+});
+let sourceData = (await res.json()) as Datum[];
+sourceData = sourceData.reverse();
+export const dateExtent = d3.extent(sourceData, (d) => new Date(d.date)) as [Date, Date];
+// complete the date range
+export const dateRange = d3.scaleUtc().domain(dateExtent).ticks(d3.utcDay);
+export const data = dateRange.map((date) => {
+  const dateString = dayjs(date).format('YYYY-MM-DD');
+  const datum = sourceData.find((d) => d.date === dateString);
+  if (datum) {
+    return datum;
+  }
+  return {
+    date: dateString,
+    requestCount: 0,
+    distinctRequestCount: 0,
+    distinctIpCount: 0,
+  };
+});
 
 const container = select('#container');
 
@@ -29,20 +52,21 @@ const maxValue =
   max(data, (d) => Math.max(d.requestCount, d.distinctRequestCount, d.distinctIpCount)) || 0;
 
 export const xScale = scaleUtc()
-  .domain(d3.extent(data, (d) => new Date(d.createAt)) as [Date, Date])
+  .domain(dateExtent)
   .range([0, width - 2 * padding]);
-export const xScaleBackUp = scaleUtc()
-  .domain(d3.extent(data, (d) => new Date(d.createAt)) as [Date, Date])
-  .range([0, width - 2 * padding]);
+export const xScaleCopy = xScale.copy();
+export const xDomain = xScaleCopy.domain() as [Date, Date];
 
 export const yScale = scaleLinear()
   .domain([maxValue, 0])
   .range([0, height - 2 * padding]);
+export const yScaleCopy = yScale.copy();
+export const yDomain = yScaleCopy.domain() as [number, number];
 
 export const genLinePos = () => {
   return d3
     .line<number>()
-    .x((d, i) => xScale(new Date(data[i].createAt)) || 0)
+    .x((d, i) => xScale(new Date(data[i].date)) || 0)
     .y((d) => yScale(d) || 0);
 };
 
@@ -57,7 +81,7 @@ export const xAxis = svg
   .attr('transform', `translate(${padding},${height - padding})`)
   .call(axisBottom(xScale));
 // y 轴
-svg
+export const yAxis = svg
   .append('g')
   .attr('class', 'axis')
   .attr('transform', `translate(${padding},${padding})`)
@@ -192,10 +216,14 @@ tooltip
     const x = xScale;
     const y = yScale;
     const xDate = x.invert(mouse[0]);
-    const idx = d3.bisector((d1: any) => new Date(d1.createAt)).right(data, xDate);
-    const x1 = x(new Date(data[idx].createAt)) || 0;
+    const idx = d3.bisector((d1: Datum) => new Date(d1.date)).center(data, xDate);
+    const x1 = x(new Date(data[idx].date)) || 0;
     const y1 = height - 2 * padding;
     const y2 = 0;
+    if (x1 < 0 || x1 > width - 2 * padding) {
+      // 超出边界，不显示
+      return;
+    }
     // below is line element
     // d3.select('.tooltip-line').attr('x1', x1).attr('x2', x1).attr('y1', y1).attr('y2', y2);
     d3.select('.tooltip-line')
@@ -204,7 +232,7 @@ tooltip
         [x1, y2],
       ])
       .attr('d', d3.line());
-    const t = d3.select<SVGTextElement, unknown>('.tooltip-text').text(data[idx].createAt);
+    const t = d3.select<SVGTextElement, unknown>('.tooltip-text').text(data[idx].date);
     const tW = t.node()?.getBBox().width || 0;
     t.style('transform', `translate(${x1 - tW / 2}px, 0)`);
 
@@ -213,6 +241,6 @@ tooltip
     ).attr('transform', function group(d) {
       const value = data[idx][d];
       d3.select(this).select('text').text(value.toFixed(0));
-      return `translate(${x(new Date(data[idx].createAt))},${y(value)})`;
+      return `translate(${x(new Date(data[idx].date))},${y(value)})`;
     });
   });

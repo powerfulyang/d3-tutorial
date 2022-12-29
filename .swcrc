@@ -1,6 +1,5 @@
 {
   "minify": true,
-  "test": ".*.ts(x?)$",
   "jsc": {
     "parser": {
       "syntax": "typescript",

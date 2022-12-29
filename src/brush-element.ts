@@ -1,5 +1,6 @@
 import * as d3 from 'd3';
-import { axisBottom, scaleLinear } from 'd3';
+import { axisBottom, axisLeft, scaleLinear } from 'd3';
+import dayjs from 'dayjs';
 import type { Datum } from './base';
 import {
   data,
@@ -11,8 +12,12 @@ import {
   svg,
   width,
   xAxis,
+  xDomain,
   xScale,
-  xScaleBackUp,
+  xScaleCopy,
+  yAxis,
+  yDomain,
+  yScale,
 } from './base';
 
 const brush = d3.brushX().extent([
@@ -26,20 +31,35 @@ const updateChart = (event: any) => {
   if (!extent) {
     if (changed) {
       changed = false;
-      xScale.domain(d3.extent(data, (d) => new Date(d.createAt)) as [Date, Date]);
+      xScale.domain(xDomain);
+      yScale.domain(yDomain);
     } else {
       // do nothing
       return;
     }
   } else {
     changed = true;
-    xScale.domain([xScaleBackUp.invert(extent[0]), xScaleBackUp.invert(extent[1])]);
+    const start = xScaleCopy.invert(extent[0]);
+    const end = xScaleCopy.invert(extent[1]);
+    xScale.domain([start, end]);
+    const dateRange = d3.scaleUtc().domain([start, end]).ticks(d3.utcDay);
+    const startDate = d3.min(dateRange);
+    const endDate = d3.max(dateRange);
+    const startSliceIndex = data.findIndex((d) => d.date === dayjs(startDate).format('YYYY-MM-DD'));
+    const endSliceIndex = data.findIndex((d) => d.date === dayjs(endDate).format('YYYY-MM-DD'));
+    const slicedData = data.slice(startSliceIndex, endSliceIndex + 1);
+    const maxValue =
+      d3.max(slicedData, (d) =>
+        Math.max(d.requestCount, d.distinctRequestCount, d.distinctIpCount),
+      ) || 0;
+    yScale.domain([maxValue, 0]);
   }
 
   // remove existing circles
   line.selectAll('.circle').remove();
   // update axis and line position
   xAxis.transition().duration(1000).call(axisBottom(xScale));
+  yAxis.transition().duration(1000).call(axisLeft(yScale));
   line
     .selectAll<SVGPathElement, number[]>('.line')
     .transition()
@@ -61,21 +81,20 @@ const brushElement = svg
   .attr('transform', `translate(${padding},${height - padding + 20})`)
   .call(brush);
 
-//
 const histogram = d3
-  .bin<Datum, Date>()
-  .value((d) => {
-    return new Date(d.createAt);
-  })
-  .domain(xScale.domain() as [Date, Date])
-  .thresholds(data.map((d) => new Date(d.createAt)));
+  .bin<Datum, number>()
+  .thresholds(data.length)
+  .value((_, i) => i);
+
 const bins = histogram(data);
 const maxDistinctIpCount = d3.max(data, (d) => d.distinctIpCount) || 0;
 const yHistogramScale = d3.scaleLinear().domain([maxDistinctIpCount, 0]).range([0, 50]);
 const yHistogramColor = scaleLinear<string, number>()
   .domain([0, maxDistinctIpCount])
   .range(['#ffffff', '#0000ff']);
+
 // 添加直方图
+const binWidth = (width - 2 * padding) / bins.length;
 brushElement
   .insert('g', ':first-child')
   .attr('class', 'brush-histogram')
@@ -83,14 +102,14 @@ brushElement
   .data(bins)
   .join('rect')
   .attr('width', (d) => {
-    return xScale(d.x1!) - xScale(d.x0!);
+    return binWidth;
   })
-  .attr('height', (_, i) => {
-    return 50 - yHistogramScale(data[i].distinctIpCount);
+  .attr('height', (d) => {
+    return 50 - yHistogramScale(d[0].distinctIpCount);
   })
-  .style('fill', (_, i) => {
-    return yHistogramColor(data[i].distinctIpCount);
+  .style('fill', (d) => {
+    return yHistogramColor(d[0].distinctIpCount);
   })
   .attr('transform', (d, i) => {
-    return `translate(${xScale(d.x0!)},${yHistogramScale(data[i].distinctIpCount)})`;
+    return `translate(${binWidth * i},${yHistogramScale(d[0].distinctIpCount)})`;
   });

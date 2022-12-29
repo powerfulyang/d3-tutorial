@@ -26,6 +26,7 @@
     "html-loader": "latest"
   },
   "dependencies": {
-    "d3": "latest"
+    "d3": "latest",
+    "dayjs": "latest"
   }
 }
