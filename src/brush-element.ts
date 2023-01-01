@@ -101,15 +101,24 @@ brushElement
   .selectAll('rect')
   .data(bins)
   .join('rect')
-  .attr('width', (d) => {
+  .attr('width', () => {
     return binWidth;
   })
   .attr('height', (d) => {
-    return 50 - yHistogramScale(d[0].distinctIpCount);
+    if (d[0]) {
+      return 50 - yHistogramScale(d[0].distinctIpCount);
+    }
+    return 0;
   })
   .style('fill', (d) => {
-    return yHistogramColor(d[0].distinctIpCount);
+    if (d[0]) {
+      return yHistogramColor(d[0].distinctIpCount);
+    }
+    return yHistogramColor(0);
   })
   .attr('transform', (d, i) => {
-    return `translate(${binWidth * i},${yHistogramScale(d[0].distinctIpCount)})`;
+    if (d[0]) {
+      return `translate(${binWidth * i},${yHistogramScale(d[0].distinctIpCount)})`;
+    }
+    return null;
   });

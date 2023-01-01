@@ -15,7 +15,7 @@ module.exports = merge(common, {
     },
     proxy: {
       '/api': {
-        target: 'https://api.powerfulyang.com',
+        target: process.env.DEV_URL || 'https://api.powerfulyang.com',
         changeOrigin: true,
       },
     },

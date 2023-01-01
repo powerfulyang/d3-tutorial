@@ -1,8 +1,7 @@
 import * as d3 from 'd3';
 import { axisBottom, axisLeft, max, scaleLinear, scaleUtc, select } from 'd3';
 import dayjs from 'dayjs';
-
-const prefix = process.env.BASE_URL;
+import { prefix } from './constants/prefix';
 
 export type Datum = {
   date: string;

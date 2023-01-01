@@ -2,6 +2,9 @@ const path = require('path');
 const HTMLWebpackPlugin = require('html-webpack-plugin');
 const { CleanWebpackPlugin } = require('clean-webpack-plugin');
 const webpack = require('webpack');
+const dotenv = require('dotenv');
+
+dotenv.config();
 
 module.exports = {
   entry: './src/index.ts',
@@ -32,6 +35,9 @@ module.exports = {
   },
   resolve: {
     extensions: ['.tsx', '.js', '.ts'],
+    alias: {
+      '@': path.resolve(__dirname, '../src'),
+    },
   },
   output: {
     filename: 'bundle.js',
