@@ -1,5 +1,5 @@
 import { prefix } from '@/constants/prefix';
-import type { UserInfo } from '@/type';
+import type { UserInfo } from '@/types';
 import * as d3 from 'd3';
 
 const res = await fetch(`${prefix}/api/github/user_info/powerfulyang`);

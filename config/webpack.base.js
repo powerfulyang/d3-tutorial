@@ -40,8 +40,9 @@ module.exports = {
     },
   },
   output: {
-    filename: 'bundle.js',
+    filename: '[name].[contenthash].js',
     path: path.resolve(__dirname, '../dist'),
+    clean: true,
   },
   plugins: [
     new HTMLWebpackPlugin({
@@ -55,4 +56,16 @@ module.exports = {
       'process.env.BASE_URL': JSON.stringify(process.env.BASE_URL || ''),
     }),
   ],
+  optimization: {
+    runtimeChunk: 'single',
+    splitChunks: {
+      cacheGroups: {
+        vendor: {
+          test: /[\\/]node_modules[\\/]/,
+          name: 'vendors',
+          chunks: 'all',
+        },
+      },
+    },
+  },
 };
