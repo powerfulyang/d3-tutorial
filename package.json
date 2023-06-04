@@ -28,6 +28,6 @@
   "dependencies": {
     "d3": "latest",
     "dayjs": "latest",
-    "dotenv": "16.0.3"
+    "dotenv": "16.1.4"
   }
 }
